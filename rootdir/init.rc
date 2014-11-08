@@ -10,7 +10,8 @@ import /init.${ro.hardware}.rc
 import /init.${ro.zygote}.rc
 import /init.trace.rc
 # Include vendor extra init file
-import /init.vendor.rc
+import /init.hybrid.rc
+
 
 
 on early-init
