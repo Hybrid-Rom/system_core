@@ -79,6 +79,8 @@
 #define AID_LOGD          1036  /* log daemon */
 #define AID_SHARED_RELRO  1037  /* creator of shared GNU RELRO files */
 
+#define AID_AUDIT         1049  /* audit daemon */
+
 #define AID_SHELL         2000  /* adb and debug shell user */
 #define AID_CACHE         2001  /* cache access */
 #define AID_DIAG          2002  /* access to diagnostic resources */
@@ -155,6 +157,9 @@ static const struct android_id_info android_ids[] = {
     { "sdcard_r",      AID_SDCARD_R, },
     { "clat",          AID_CLAT, },
     { "loop_radio",    AID_LOOP_RADIO, },
+#if defined(QCOM_LEGACY_UIDS)
+    { "qcom_oncrpc",   AID_QCOM_ONCRPC, },
+#endif
     { "mediadrm",      AID_MEDIA_DRM, },
     { "package_info",  AID_PACKAGE_INFO, },
     { "sdcard_pics",   AID_SDCARD_PICS, },
@@ -162,6 +167,8 @@ static const struct android_id_info android_ids[] = {
     { "sdcard_all",    AID_SDCARD_ALL, },
     { "logd",          AID_LOGD, },
     { "shared_relro",  AID_SHARED_RELRO, },
+
+    { "audit",         AID_AUDIT, },
 
     { "shell",         AID_SHELL, },
     { "cache",         AID_CACHE, },
@@ -277,6 +284,7 @@ static const struct fs_path_config android_files[] = {
     { 00750, AID_ROOT,      AID_SHELL,     0, "init*" },
     { 00750, AID_ROOT,      AID_SHELL,     0, "sbin/fs_mgr" },
     { 00640, AID_ROOT,      AID_SHELL,     0, "fstab.*" },
+    { 00755, AID_ROOT,      AID_SHELL,     0, "system/etc/init.d/*" },
     { 00644, AID_ROOT,      AID_ROOT,      0, 0 },
 };
 

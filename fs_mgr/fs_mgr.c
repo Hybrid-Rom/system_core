@@ -370,11 +370,10 @@ int fs_mgr_mount_all(struct fstab *fstab)
             wait_for_file(fstab->recs[i].blk_device, WAIT_TIMEOUT);
         }
 
-        if ((fstab->recs[i].fs_mgr_flags & MF_VERIFY) && device_is_secure() && !device_is_debuggable()) {
-            int rc = fs_mgr_setup_verity(&fstab->recs[i]);
-            if (device_is_debuggable() && rc == FS_MGR_SETUP_VERITY_DISABLED) {
-                INFO("Verity disabled");
-            } else if (rc != FS_MGR_SETUP_VERITY_SUCCESS) {
+        if ((fstab->recs[i].fs_mgr_flags & MF_VERIFY) &&
+            !device_is_debuggable()) {
+            wait_for_file("/dev/device-mapper", WAIT_TIMEOUT);
+            if (fs_mgr_setup_verity(&fstab->recs[i]) < 0) {
                 ERROR("Could not set up verified partition, skipping!\n");
                 continue;
             }

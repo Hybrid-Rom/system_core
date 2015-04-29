@@ -72,11 +72,21 @@ char *locale;
 #define LAST_KMSG_PATH          "/proc/last_kmsg"
 #define LAST_KMSG_PSTORE_PATH   "/sys/fs/pstore/console-ramoops"
 #define LAST_KMSG_MAX_SZ        (32 * 1024)
+#ifndef RED_LED_PATH
 #define RED_LED_PATH            "/sys/class/leds/red/brightness"
+#endif
+#ifndef GREEN_LED_PATH
 #define GREEN_LED_PATH          "/sys/class/leds/green/brightness"
+#endif
+#ifndef BLUE_LED_PATH
 #define BLUE_LED_PATH           "/sys/class/leds/blue/brightness"
+#endif
+#ifndef BACKLIGHT_PATH
 #define BACKLIGHT_PATH          "/sys/class/leds/lcd-backlight/brightness"
+#endif
+#ifndef CHARGING_ENABLED_PATH
 #define CHARGING_ENABLED_PATH   "/sys/class/power_supply/battery/charging_enabled"
+#endif
 
 #define LOGE(x...) do { KLOG_ERROR("charger", x); } while (0)
 #define LOGW(x...) do { KLOG_WARNING("charger", x); } while (0)
@@ -196,12 +206,13 @@ struct soc_led_color_mapping {
     int color;
 };
 
-/* Increasing battery charge percentage vs LED color mapping */
 struct soc_led_color_mapping soc_leds[3] = {
     {15, RED_LED},
     {90, RED_LED | GREEN_LED},
     {100, GREEN_LED},
 };
+
+static struct charger charger_state;
 
 static struct charger charger_state;
 static struct healthd_config *healthd_config;
@@ -241,24 +252,18 @@ cleanup:
 static int set_battery_soc_leds(int soc)
 {
     int i, color;
-    static int old_color = -1;
-    int range_max = ARRAY_SIZE(soc_leds) - 1;
+    static int old_color = 0;
 
-    if (range_max < 0)
-        return 0;
-
-    color = soc_leds[range_max].color;
-    for (i = 0; i <= range_max ; i++) {
-        if (soc < soc_leds[i].soc) {
-            color = soc_leds[i].color;
+    for (i = 0; i < (int)ARRAY_SIZE(soc_leds); i++) {
+        if (soc < soc_leds[i].soc)
             break;
-        }
     }
+    color = soc_leds[i].color;
     if (old_color != color) {
-        if (old_color >= 0)
-            set_tricolor_led(0, old_color);
+        set_tricolor_led(0, old_color);
         set_tricolor_led(1, color);
         old_color = color;
+        LOGV("soc = %d, set led color 0x%x\n", soc, soc_leds[i].color);
     }
 
     return 0;
@@ -272,7 +277,7 @@ static int set_backlight_on(void)
 
     if (access(BACKLIGHT_PATH, R_OK | W_OK) != 0)
     {
-        LOGW("Backlight control not support\n");
+        LOGI("Backlight control not support\n");
         return 0;
     }
 
@@ -358,6 +363,56 @@ out:
     LOGW("\n");
     LOGW("************* END LAST KMSG *************\n");
     LOGW("\n");
+}
+
+static int read_file(const char *path, char *buf, size_t sz)
+{
+    int fd;
+    size_t cnt;
+
+    fd = open(path, O_RDONLY, 0);
+    if (fd < 0)
+        goto err;
+
+    cnt = read(fd, buf, sz - 1);
+    if (cnt <= 0)
+        goto err;
+    buf[cnt] = '\0';
+    if (buf[cnt - 1] == '\n') {
+        cnt--;
+        buf[cnt] = '\0';
+    }
+
+    close(fd);
+    return cnt;
+
+err:
+    if (fd >= 0)
+        close(fd);
+    return -1;
+}
+
+static int read_file_int(const char *path, int *val)
+{
+    char buf[32];
+    int ret;
+    int tmp;
+    char *end;
+
+    ret = read_file(path, buf, sizeof(buf));
+    if (ret < 0)
+        return -1;
+
+    tmp = strtol(buf, &end, 0);
+    if (end == buf ||
+        ((end < buf+sizeof(buf)) && (*end != '\n' && *end != '\0')))
+        goto err;
+
+    *val = tmp;
+    return 0;
+
+err:
+    return -1;
 }
 
 static int read_file(const char *path, char *buf, size_t sz)
@@ -743,6 +798,11 @@ static void process_key(struct charger *charger, int code, int64_t now)
                 }
             }
         }
+    } else {
+        if (key->pending) {
+            request_suspend(false);
+            kick_animation(charger->batt_anim);
+        }
     }
 
     key->pending = false;
@@ -751,6 +811,7 @@ static void process_key(struct charger *charger, int code, int64_t now)
 static void handle_input_state(struct charger *charger, int64_t now)
 {
     process_key(charger, KEY_POWER, now);
+    process_key(charger, KEY_HOME, now);
 
     if (charger->next_key_check != -1 && now > charger->next_key_check)
         charger->next_key_check = -1;
@@ -901,6 +962,16 @@ void healthd_mode_charger_init(struct healthd_config* config)
         if (!ret && !charging_enabled) {
             /* if charging is disabled, reboot and exit power off charging */
             LOGW("android charging is disabled, exit!\n");
+            android_reboot(ANDROID_RB_RESTART, 0, 0);
+        }
+    }
+
+    if (mode == NORMAL) {
+        /* check the charging is enabled or not */
+        ret = read_file_int(CHARGING_ENABLED_PATH, &charging_enabled);
+        if (!ret && !charging_enabled) {
+            /* if charging is disabled, reboot and exit power off charging */
+            LOGI("android charging is disabled, exit!\n");
             android_reboot(ANDROID_RB_RESTART, 0, 0);
         }
     }

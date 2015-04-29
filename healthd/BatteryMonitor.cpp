@@ -260,10 +260,6 @@ bool BatteryMonitor::update(void) {
                     }
                 }
                 break;
-            case ANDROID_POWER_SUPPLY_TYPE_BATTERY:
-                break;
-            default:
-                break;
             } //switch
         } //while
         closedir(dir);

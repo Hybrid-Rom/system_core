@@ -57,6 +57,20 @@ endif #DOLBY_END
 # Enable ueventd logging
 #LOCAL_CFLAGS += -DLOG_UEVENTS=1
 
+SYSTEM_CORE_INIT_DEFINES := BOARD_CHARGING_MODE_BOOTING_LPM \
+    BOARD_CHARGING_CMDLINE_NAME \
+    BOARD_CHARGING_CMDLINE_VALUE
+
+$(foreach system_core_init_define,$(SYSTEM_CORE_INIT_DEFINES), \
+  $(if $($(system_core_init_define)), \
+    $(eval LOCAL_CFLAGS += -D$(system_core_init_define)=\"$($(system_core_init_define))\") \
+  ) \
+)
+
+ifneq ($(TARGET_NR_SVC_SUPP_GIDS),)
+LOCAL_CFLAGS += -DNR_SVC_SUPP_GIDS=$(TARGET_NR_SVC_SUPP_GIDS)
+endif
+
 LOCAL_MODULE:= init
 
 LOCAL_FORCE_STATIC_EXECUTABLE := true
